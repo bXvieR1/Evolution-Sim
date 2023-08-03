@@ -9,6 +9,9 @@ MAX_AGE = 5
 # configuration. This scheme should be adaptive so that species do not evolve
 # to become "cautious" and only make very slow progress.
 
+fastEvo = False
+
+
 
 class DefaultReproduction(DefaultClassConfig):
     """
@@ -51,7 +54,10 @@ class DefaultReproduction(DefaultClassConfig):
         new_population = {}
         #species.species = {}
         for s in remaining_species:
-            old_members = [(i, v) for i, v in s.members.items() if v.fitness == 1]
+            old_members = [(i, v) for i, v in s.members.items() if v.fitness > 0]
+            if fastEvo:
+                sorted_old_members = sorted(old_members, key=lambda x: x[1].fitness, reverse=True)
+                old_members = sorted_old_members[:2]
 
             species.species[s.key] = s
             for i, m in old_members:
@@ -69,12 +75,13 @@ class DefaultReproduction(DefaultClassConfig):
 
                 # Note that if the parents are not distinct, crossover will produce a
                 # genetically identical clone of the parent (but with a different ID).
-                gid = next(self.genome_indexer)
-                child = config.genome_type(gid)
-                child.configure_crossover(parent1, parent2, generation, config.genome_config)
-                child.mutate(config.genome_config)
-                # TODO: if config.genome_config.feed_forward, no cycles should exist
-                new_population[gid] = child
-                self.ancestors[gid] = (parent1_id, parent2_id)
+                for x in range(int((parent1.fitness + parent2.fitness) / 2)):
+                    gid = next(self.genome_indexer)
+                    child = config.genome_type(gid)
+                    child.configure_crossover(parent1, parent2, generation, config.genome_config)
+                    child.mutate(config.genome_config)
+                    # TODO: if config.genome_config.feed_forward, no cycles should exist
+                    new_population[gid] = child
+                    self.ancestors[gid] = (parent1_id, parent2_id)
 
         return new_population

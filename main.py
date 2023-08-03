@@ -4,21 +4,36 @@ import random
 import os
 import neat
 import numpy as np
+import pygame_widgets
+import time
 from pygame_widgets.slider import Slider
 from pygame_widgets.textbox import TextBox
+from pygame_widgets.button import Button
 
 import genome
 import reproduction
+
+run = True
+
+def fucK():
+    global run
+    run = False
+
 
 RAY_COUNT = 16
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-foodSlider = Slider(screen, 100, 100, 800, 400, min=0, max=100, step=1, initial=70)
-foodText = TextBox(screen, 100, 100, 800, 400, fontSize=30)
+foodSlider = Slider(screen, 15, 15, 100, 30, min=0, max=100, step=1, initial=70)
+foodText = TextBox(screen, 15, 45, 80, 40, fontSize=30)
+speedSlider = Slider(screen, 160, 15, 500, 30, min=0, max=50, step=0.1, initial=1)
+speedText = TextBox(screen, 160, 45, 500, 40, fontSize=30)
+button = Button(screen, 700, 15, 30, 30, onClick=lambda: fucK())
 gen = 0
 
+def current_time_millis():
+    return int(round(time.time() * 1000))
 
 class Agent():
     rotation = 90
@@ -29,13 +44,13 @@ class Agent():
         self.range = genome.range * 50
         self.speed = genome.speed
     def move(self, input):
-        input *= 5
+        input *= speedSlider.getValue()
         self.position = np.add(self.position,
                                (np.sin(self.rotation) * (input / 2 + 0.25), np.cos(self.rotation) * (input / 2 + 0.25))) \
             .clip((10, 10), (SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10))
 
     def turn(self, input):
-        self.rotation += 10 * (input / 180)
+        self.rotation += speedSlider.getValue() * 2 * (input / 180)
 
     def draw(self):
 
@@ -123,6 +138,7 @@ def run(config_file):
 
 
 def eval_genomes(genomes, config):
+    global run
     global gen
     gen += 1
     nets = []
@@ -145,17 +161,20 @@ def eval_genomes(genomes, config):
                 agents.append(Agent(SCREEN_WIDTH, random.randint(0, SCREEN_HEIGHT), genome))
 
         ge.append(genome)
-    for x in range(70):
+    for x in range(foodSlider.getValue()):
         foods.append(Food(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT)))
 
     clock = pygame.time.Clock()
-
-    running = True
-    while running and len(foods) > 20:
-        screen.fill((20, 20, 20))
-        for event in pygame.event.get():
+    run = True
+    lastGenTime = current_time_millis()
+    while run and len(foods) > 0:
+        #running = (current_time_millis() - lastGenTime) < (60000/speedSlider.getValue()) or len(foods) == foodSlider.getValue()
+        #print(running)
+        screen.fill((230, 230, 230))
+        events = pygame.event.get()
+        for event in events:
             if event.type == pygame.QUIT:
-                running = False
+                run = False
                 pygame.quit()
                 quit()
                 break
@@ -177,15 +196,17 @@ def eval_genomes(genomes, config):
                 for food in foods:
                     if np.linalg.norm(food.position-agent.position) < agent.size + 8:
                         foods.remove(food)
-                        ge[x].fitness = 1
+                        ge[x].fitness += 1
                 agent.draw()
 
-        #foodText.setText(foodSlider.getValue())
+        foodText.setText(str("Food:" + str(foodSlider.getValue())))
+        speedText.setText(str("Speed:" + str(round(speedSlider.getValue(), 1))))
 
         clock.tick(100)
         pygame.display.flip()
+        pygame_widgets.update(events)
         pygame.display.update()
-        print(clock.get_fps())
+        #print(clock.get_fps())
 
 
 if __name__ == '__main__':
