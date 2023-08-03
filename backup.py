@@ -1,186 +1,196 @@
-import math
+import numpy
+import pygame
 import random
-from itertools import count
+import os
+import neat
+import numpy as np
+from pygame_widgets.slider import Slider
+from pygame_widgets.textbox import TextBox
 
-from neat.config import ConfigParameter, DefaultClassConfig
-from neat.math_util import mean
+import genome
+import reproduction
 
-
-# TODO: Provide some sort of optional cross-species performance criteria, which
-# are then used to control stagnation and possibly the mutation rate
-# configuration. This scheme should be adaptive so that species do not evolve
-# to become "cautious" and only make very slow progress.
-
-
-class DefaultReproduction(DefaultClassConfig):
-    """
-    Implements the default NEAT-python reproduction scheme:
-    explicit fitness sharing with fixed-time species stagnation.
-    """
-
-    @classmethod
-    def parse_config(cls, param_dict):
-        return DefaultClassConfig(param_dict,
-                                  [ConfigParameter('elitism', int, 0),
-                                   ConfigParameter('survival_threshold', float, 0.2),
-                                   ConfigParameter('min_species_size', int, 1)])
-
-    def __init__(self, config, reporters, stagnation):
-        # pylint: disable=super-init-not-called
-        self.reproduction_config = config
-        self.reporters = reporters
-        self.genome_indexer = count(1)
-        self.stagnation = stagnation
-        self.ancestors = {}
-
-    def create_new(self, genome_type, genome_config, num_genomes):
-        new_genomes = {}
-        for i in range(num_genomes):
-            key = next(self.genome_indexer)
-            g = genome_type(key)
-            g.configure_new(genome_config)
-            new_genomes[key] = g
-            self.ancestors[key] = tuple()
-
-        return new_genomes
+RAY_COUNT = 16
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 600
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+foodSlider = Slider(screen, 100, 100, 800, 400, min=0, max=100, step=1, initial=70)
+foodText = TextBox(screen, 100, 100, 800, 400, fontSize=30)
+gen = 0
 
 
+class Agent():
+    rotation = 90
+    energy = 20
+    def __init__(self, x, y, genome):
+        self.position = np.array([x, y])
+        self.size = genome.radius * 10
+        self.range = genome.range * 100
+        self.speed = genome.speed
+    def move(self, input):
+        input *= 5
+        self.position = np.add(self.position,
+                               (np.sin(self.rotation) * (input / 2 + 0.25), np.cos(self.rotation) * (input / 2 + 0.25))) \
+            .clip((10, 10), (SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10))
 
-    @staticmethod
-    def compute_spawn(adjusted_fitness, previous_sizes, pop_size, min_species_size):
-        """Compute the proper number of offspring per species (proportional to fitness)."""
-        af_sum = sum(adjusted_fitness)
+    def turn(self, input):
+        self.rotation += 10 * (input / 180)
 
-        spawn_amounts = []
-        for af, ps in zip(adjusted_fitness, previous_sizes):
-            if af_sum > 0:
-                s = max(min_species_size, af / af_sum * pop_size)
+    def draw(self):
+
+        body = numpy.clip((int)(self.speed * 50), 0, 50)
+        eyes = numpy.clip(255 - (int)(self.range / 20), 0, 255)
+
+        pygame.draw.circle(screen, (0, 0, 0), self.position,  self.size + 2)
+        pygame.draw.circle(screen, (250 - body, 180, 200 + body), self.position, self.size)
+
+        eye1 = (self.position[0] + np.sin(self.rotation + 0.6) * self.size, self.position[1] + np.cos(self.rotation + 0.6) * self.size)
+        pygame.draw.circle(screen, (10, 10, 10), eye1, self.size / 2 + 1)
+        pygame.draw.circle(screen, (255, eyes, eyes), eye1, self.size / 2)
+
+        eye2 = (self.position[0] + np.sin(self.rotation - 0.6) * self.size, self.position[1] + np.cos(self.rotation - 0.6) * self.size)
+        pygame.draw.circle(screen, (10, 10, 10), eye2, self.size / 2 + 1)
+        pygame.draw.circle(screen, (255, eyes, eyes), eye2, self.size / 2)
+
+
+def raycast(foods, agents):
+
+    output = np.empty((0, RAY_COUNT * 2), int)
+    positions = np.vstack(([food.position for food in foods], [agent.position for agent in agents]))
+    angles = np.arange(1, RAY_COUNT + 1) - (RAY_COUNT + 1) / 2
+    r = np.concatenate((np.full(len(foods), 8).astype(int), [agent.size for agent in agents]))
+
+    for subject in agents:
+
+        d = np.column_stack((np.sin(subject.rotation + angles * 0.1), np.cos(subject.rotation + angles * 0.1))) * subject.range
+        f = subject.position - positions
+        a = np.sum(d ** 2, axis=1)
+
+        valid_food_indices = np.where(np.linalg.norm(f, axis=1) < subject.range)[0]
+
+        c_values = np.sum(f[valid_food_indices] ** 2, axis=1) - r[valid_food_indices] ** 2
+        b_values = 2 * np.dot(f[valid_food_indices], d.T)
+        t_values = valid_food_indices < len(foods)
+        discriminant_values = b_values ** 2 - 4 * a * c_values[:, np.newaxis]
+
+        valid_ray_indices = np.where(discriminant_values >= 0)
+
+        t1_values = (-b_values[valid_ray_indices] - np.sqrt(discriminant_values[valid_ray_indices])) / (2 * a[valid_ray_indices[1]])
+        valid_t1_indices = (t1_values > 0) & (t1_values < 1)
+
+        agentRay = np.zeros(RAY_COUNT)
+        foodRay = np.zeros(RAY_COUNT)
+
+
+        foodRay[valid_ray_indices[1][valid_t1_indices]] = t1_values[valid_t1_indices] * (t_values[valid_ray_indices[0][valid_t1_indices]] == True)
+        agentRay[valid_ray_indices[1][valid_t1_indices]] = t1_values[valid_t1_indices] * (t_values[valid_ray_indices[0][valid_t1_indices]] == False)
+
+        for x, (f, a) in enumerate(zip(foodRay, agentRay)):
+            if f == 0:
+                pygame.draw.line(screen, (255, 0, 0), subject.position, subject.position + d[x] * a, 1)
             else:
-                s = min_species_size
+                pygame.draw.line(screen, (0, 255, 0), subject.position, subject.position + d[x] * f, 1)
 
-            d = (s - ps) * 0.5
-            c = int(round(d))
-            spawn = ps
-            if abs(c) > 0:
-                spawn += c
-            elif d > 0:
-                spawn += 1
-            elif d < 0:
-                spawn -= 1
+        output = np.vstack([output, np.concatenate([subject.range * foodRay, subject.range * agentRay])])
+    return output
 
-            spawn_amounts.append(spawn)
+class Food():
+    def __init__(self, x, y):
+        self.position = np.array([x, y])
+        # super(Food, self).__init__()
 
-        # Normalize the spawn amounts so that the next generation is roughly
-        # the population size requested by the user.
-        total_spawn = sum(spawn_amounts)
-        norm = pop_size / total_spawn
-        spawn_amounts = [max(min_species_size, int(round(n * norm))) for n in spawn_amounts]
-
-        return spawn_amounts
+    def draw(self):
+        pygame.draw.circle(screen, (0, 180, 0), (self.position[0], self.position[1]), 8)
 
 
-    def reproduce(self, config, species, pop_size, generation):
-        """
-        Handles creation of genomes, either from scratch or by sexual or
-        asexual reproduction from parents.
-        """
-        # TODO: I don't like this modification of the species and stagnation objects,
-        # because it requires internal knowledge of the objects.
+def run(config_file):
+    config = neat.config.Config(
+        genome.DefaultGenome,
+        reproduction.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_file)
+    p = neat.Population(config)
+    # p = neat.Checkpointer.restore_checkpoint(os.path.join(local_dir, "neat-checkpoint-19"))
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    p.add_reporter(neat.Checkpointer(10))
+    winner = p.run(eval_genomes)
+    print('\nBest genome:\n{!s}'.format(winner))
 
-        # Filter out stagnated species, collect the set of non-stagnated
-        # species members, and compute their average adjusted fitness.
-        # The average adjusted fitness scheme (normalized to the interval
-        # [0, 1]) allows the use of negative fitness values without
-        # interfering with the shared fitness scheme.
-        all_fitnesses = []
-        remaining_species = []
-        for stag_sid, stag_s, stagnant in self.stagnation.update(species, generation):
-            if stagnant:
-                self.reporters.species_stagnant(stag_sid, stag_s)
-            else:
-                all_fitnesses.extend(m.fitness for m in stag_s.members.values())
-                remaining_species.append(stag_s)
-        # The above comment was not quite what was happening - now getting fitnesses
-        # only from members of non-stagnated species.
 
-        # No species left.
-        if not remaining_species:
-            species.species = {}
-            return {}  # was []
+def eval_genomes(genomes, config):
+    global gen
+    gen += 1
+    nets = []
+    agents = []
+    foods = []
+    ge = []
 
-        # Find minimum/maximum fitness across the entire population, for use in
-        # species adjusted fitness computation.
-        min_fitness = min(all_fitnesses)
-        max_fitness = max(all_fitnesses)
-        # Do not allow the fitness range to be zero, as we divide by it below.
-        # TODO: The ``1.0`` below is rather arbitrary, and should be configurable.
-        fitness_range = max(1.0, max_fitness - min_fitness)
-        for afs in remaining_species:
-            # Compute adjusted fitness.
-            msf = mean([m.fitness for m in afs.members.values()])
-            af = (msf - min_fitness) / fitness_range
-            afs.adjusted_fitness = af
+    for genome_id, genome in genomes:
+        genome.fitness = 0
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
+        match genome_id % 4:
+            case 0:
+                agents.append(Agent(random.randint(0, SCREEN_WIDTH), 0, genome))
+            case 1:
+                agents.append(Agent(random.randint(0, SCREEN_WIDTH), SCREEN_HEIGHT, genome))
+            case 2:
+                agents.append(Agent(0, random.randint(0, SCREEN_HEIGHT), genome))
+            case 3:
+                agents.append(Agent(SCREEN_WIDTH, random.randint(0, SCREEN_HEIGHT), genome))
 
-        adjusted_fitnesses = [s.adjusted_fitness for s in remaining_species]
-        avg_adjusted_fitness = mean(adjusted_fitnesses)  # type: float
-        self.reporters.info("Average adjusted fitness: {:.3f}".format(avg_adjusted_fitness))
+        ge.append(genome)
+    for x in range(foodSlider.getValue()):
+        foods.append(Food(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT)))
 
-        # Compute the number of new members for each species in the new generation.
-        previous_sizes = [len(s.members) for s in remaining_species]
-        min_species_size = self.reproduction_config.min_species_size
-        # Isn't the effective min_species_size going to be max(min_species_size,
-        # self.reproduction_config.elitism)? That would probably produce more accurate tracking
-        # of population sizes and relative fitnesses... doing. TODO: document.
-        min_species_size = max(min_species_size, self.reproduction_config.elitism)
-        spawn_amounts = self.compute_spawn(adjusted_fitnesses, previous_sizes,
-                                           pop_size, min_species_size)
+    clock = pygame.time.Clock()
 
-        new_population = {}
-        species.species = {}
-        for spawn, s in zip(spawn_amounts, remaining_species):
-            # If elitism is enabled, each species always at least gets to retain its elites.
-            spawn = max(spawn, self.reproduction_config.elitism)
+    running = True
+    while running and len(foods) > 20:
+        screen.fill((20, 20, 20))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                quit()
+                break
 
-            assert spawn > 0
+        for food in foods:
+            food.draw()
 
-            # The species has at least one member for the next generation, so retain it.
-            old_members = list(s.members.items())
-            s.members = {}
-            species.species[s.key] = s
+        #print(pygame.mouse.get_pos())
 
-            # Sort members in order of descending fitness.
-            old_members.sort(reverse=True, key=lambda x: x[1].fitness)
+        ray = raycast(foods, agents)
 
-            # Transfer elites to new generation.
-            if self.reproduction_config.elitism > 0:
-                for i, m in old_members[:self.reproduction_config.elitism]:
-                    spawn -= 1
+        for x, agent in enumerate(agents):
 
-            if spawn <= 0:
-                continue
+            if agent.energy > 0:
+                output = nets[agents.index(agent)].activate(ray[x])
+                agent.move(output[0] * agent.speed)
+                agent.turn(output[1] * agent.speed)
+                #agent.energy =- np.abs(output[0]) + 0.1
+                for food in foods:
+                    if np.linalg.norm(food.position-agent.position) < agent.size + 8:
+                        foods.remove(food)
+                        ge[x].fitness = 1
+                agent.draw()
 
-            # Only use the survival threshold fraction to use as parents for the next generation.
-            repro_cutoff = int(math.ceil(self.reproduction_config.survival_threshold *
-                                         len(old_members)))
-            # Use at least two parents no matter what the threshold fraction result is.
-            repro_cutoff = max(repro_cutoff, 2)
-            old_members = old_members[:repro_cutoff]
+        #foodText.setText(foodSlider.getValue())
 
-            # Randomly choose parents and produce the number of offspring allotted to the species.
-            while spawn > 0:
-                spawn -= 1
+        clock.tick(100)
+        pygame.display.flip()
+        pygame.display.update()
+        print(clock.get_fps())
 
-                parent1_id, parent1 = random.choice(old_members)
-                parent2_id, parent2 = random.choice(old_members)
 
-                # Note that if the parents are not distinct, crossover will produce a
-                # genetically identical clone of the parent (but with a different ID).
-                gid = next(self.genome_indexer)
-                child = config.genome_type(gid)
-                child.configure_crossover(parent1, parent2, config.genome_config)
-                child.mutate(config.genome_config)
-                # TODO: if config.genome_config.feed_forward, no cycles should exist
-                new_population[gid] = child
-                self.ancestors[gid] = (parent1_id, parent2_id)
-
-        return new_population
+if __name__ == '__main__':
+    # Determine path to configuration file. This path manipulation is
+    # here so that the script will run successfully regardless of the
+    # current working directory.
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config')
+    run(config_path)

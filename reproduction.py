@@ -3,7 +3,7 @@ from itertools import count
 
 from neat.config import ConfigParameter, DefaultClassConfig
 
-
+MAX_AGE = 5
 # TODO: Provide some sort of optional cross-species performance criteria, which
 # are then used to control stagnation and possibly the mutation rate
 # configuration. This scheme should be adaptive so that species do not evolve
@@ -52,18 +52,17 @@ class DefaultReproduction(DefaultClassConfig):
         #species.species = {}
         for s in remaining_species:
             old_members = [(i, v) for i, v in s.members.items() if v.fitness == 1]
+
             species.species[s.key] = s
             for i, m in old_members:
-                print(i)
-                new_population[i] = m
+                if generation - m.createdGeneration < MAX_AGE:
+                    new_population[i] = m
 
 
             s.members = {}
 
             # Randomly choose parents and produce the number of offspring allotted to the species.
-            spawn = len(old_members)
-            while spawn > 0:
-                spawn -= 1
+            for i in range(len(old_members)):
 
                 parent1_id, parent1 = random.choice(old_members)
                 parent2_id, parent2 = random.choice(old_members)
@@ -72,7 +71,7 @@ class DefaultReproduction(DefaultClassConfig):
                 # genetically identical clone of the parent (but with a different ID).
                 gid = next(self.genome_indexer)
                 child = config.genome_type(gid)
-                child.configure_crossover(parent1, parent2, config.genome_config)
+                child.configure_crossover(parent1, parent2, generation, config.genome_config)
                 child.mutate(config.genome_config)
                 # TODO: if config.genome_config.feed_forward, no cycles should exist
                 new_population[gid] = child
