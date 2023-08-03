@@ -4,14 +4,20 @@ import random
 import os
 import neat
 import numpy as np
+from pygame_widgets.slider import Slider
+from pygame_widgets.textbox import TextBox
+
 
 import reproduction
 
 RAY_COUNT = 16
-FOOD_RADIUS = 200
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = 600
+FOOD_RADIUS = 70
+SCREEN_WIDTH = 1600
+SCREEN_HEIGHT = 800
+pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+foodSlider = Slider(screen, 100, 100, 800, 400, min=0, max=100, step=1, initial=70)
+foodText = TextBox(screen, 100, 100, 800, 400, fontSize=30)
 gen = 0
 
 
@@ -20,15 +26,16 @@ class Agent():
     energy = 20
     def __init__(self, x, y, size):
         self.position = np.array([x, y])
-        self.size = size
+        self.size = size/2
 
     def move(self, input):
+        input *= 5
         self.position = np.add(self.position,
                                (np.sin(self.rotation) * (input / 2 + 0.25), np.cos(self.rotation) * (input / 2 + 0.25))) \
             .clip((10, 10), (SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10))
 
     def turn(self, input):
-        self.rotation += input / 180
+        self.rotation += 10 * (input / 180)
 
     def draw(self):
         pygame.draw.circle(screen, (255, 255, 255), (self.position[0], self.position[1]), self.size)
@@ -73,6 +80,7 @@ def raycast(foods, agents):
         #for val in d:
         #    pygame.draw.line(screen, (180, 180, 180), subject.position, subject.position + val, 1)
 
+        #if pygame.key.get_pressed()[pygame.K_DOWN] == 1:
         for val, t in zip(valid_ray_indices[1][valid_t1_indices], hit[valid_ray_indices[1][valid_t1_indices]]):
             color = (255, 0, 0) if t == 1 else (0, 255, 0) if t == -1 else (0, 0, 255)
             pygame.draw.line(screen, color, subject.position, subject.position + d[val] * ray[val], 1)
@@ -92,7 +100,7 @@ class Food():
 def run(config_file):
     config = neat.config.Config(
         neat.DefaultGenome,
-        neat.DefaultReproduction,
+        reproduction.DefaultReproduction,
         neat.DefaultSpeciesSet,
         neat.DefaultStagnation,
         config_file)
@@ -136,7 +144,7 @@ def eval_genomes(genomes, config):
     clock = pygame.time.Clock()
 
     running = True
-    while running and len(foods) > 0:
+    while running and len(foods) > 10:
         screen.fill((0, 0, 0))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -147,6 +155,8 @@ def eval_genomes(genomes, config):
 
         for food in foods:
             food.draw()
+
+        #print(pygame.mouse.get_pos())
 
         ray = raycast(foods, agents)
 
@@ -163,9 +173,12 @@ def eval_genomes(genomes, config):
                         ge[x].fitness = 1
                 agent.draw()
 
+        foodText.setText(foodSlider.getValue())
+
         clock.tick(100)
         pygame.display.flip()
-        print(clock.get_fps())
+        pygame.display.update()
+        #print(clock.get_fps())
 
 
 if __name__ == '__main__':
