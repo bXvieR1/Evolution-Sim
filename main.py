@@ -31,18 +31,13 @@ class Agent():
         self.rotation += input / 180
 
     def draw(self):
-        if self.active:
-            pygame.draw.circle(screen, (255, 255, 255), (self.position[0], self.position[1]), self.size)
-            pygame.draw.circle(screen, (180, 0, 0), (self.position[0] + np.sin(self.rotation + 0.6) * self.size,
+        pygame.draw.circle(screen, (255, 255, 255), (self.position[0], self.position[1]), self.size)
+        pygame.draw.circle(screen, (0, 0, 180), (self.position[0] + np.sin(self.rotation + 0.6) * self.size,
                                                  self.position[1] + np.cos(self.rotation + 0.6) * self.size),
                                                  self.size / 2)
-
-            pygame.draw.circle(screen, (180, 0, 0), (self.position[0] + np.sin(self.rotation - 0.6) * self.size,
+        pygame.draw.circle(screen, (0, 0, 180), (self.position[0] + np.sin(self.rotation - 0.6) * self.size,
                                                  self.position[1] + np.cos(self.rotation - 0.6) * self.size),
                                                  self.size / 2)
-        else:
-            pygame.draw.circle(screen, (180, 180, 180), (self.position[0], self.position[1]), self.size)
-
 def raycast(foods, agents):
 
     output = np.empty((0, RAY_COUNT*2), int)
@@ -120,7 +115,7 @@ def eval_genomes(genomes, config):
     ge = []
 
     for genome_id, genome in genomes:
-        genome.fitness = 20
+        genome.fitness = 0
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         nets.append(net)
         size = random.randint(8, 20)
@@ -135,7 +130,7 @@ def eval_genomes(genomes, config):
                 agents.append(Agent(SCREEN_WIDTH, random.randint(0, SCREEN_HEIGHT), size))
 
         ge.append(genome)
-    for x in range(20):
+    for x in range(foodSlider.getValue()):
         foods.append(Food(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT)))
 
     clock = pygame.time.Clock()
@@ -161,11 +156,11 @@ def eval_genomes(genomes, config):
                 output = nets[agents.index(agent)].activate(ray[x])
                 agent.move(output[0])
                 agent.turn(output[1])
-                agent.energy =- np.abs(output[0]) + 0.1
+                #agent.energy =- np.abs(output[0]) + 0.1
                 for food in foods:
                     if np.linalg.norm(food.position-agent.position) < agent.size:
                         foods.remove(food)
-                        agent.energy += 10
+                        ge[x].fitness = 1
                 agent.draw()
 
         clock.tick(100)
