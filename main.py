@@ -43,7 +43,7 @@ class Agent():
         self.range = genome.range
         self.speed = genome.speed
 
-        self.need = self.size ** 3 * self.speed ** 2 + self.range
+        self.need = (self.size ** 3 * self.speed ** 2 + self.range) / 2
         #self.need = self.size * (1 / self.speed) + 1 / self.range ** 2
 
 
@@ -238,11 +238,11 @@ def eval_genomes(genomes, config):
     graph2 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph2.fill((200, 200, 200))
 
-    for x in np.arange(5, limit, 5):
+    for x in np.arange(10, limit, 10):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         pygame.draw.line(graph2, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
         pygame.draw.line(graph2, (0, 0, 0), (0, y), (2, y), 2)
-    for x in np.arange(25, limit, 25):
+    for x in np.arange(50, limit, 50):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         number = calibri.render(str(x), False, (0, 0, 0))
         pygame.draw.line(graph2, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
@@ -256,11 +256,11 @@ def eval_genomes(genomes, config):
     limit = numpy.max(stats[4]) * 1.1
     graph3 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph3.fill((200, 200, 200))
-    for x in np.arange(0.5, limit, 0.5):
+    for x in np.arange(2.5, limit, 2.5):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         pygame.draw.line(graph3, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
         pygame.draw.line(graph3, (0, 0, 0), (0, y), (2, y), 2)
-    for x in np.arange(2.5, limit, 2.5):
+    for x in np.arange(10, limit, 10):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         number = calibri.render(str(x), False, (0, 0, 0))
         pygame.draw.line(graph3, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
