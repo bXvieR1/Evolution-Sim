@@ -6,7 +6,7 @@ from itertools import count
 from random import choice, random, shuffle, gauss
 
 import sys
-
+import numpy
 from neat.activations import ActivationFunctionSet
 from neat.aggregations import AggregationFunctionSet
 from neat.config import ConfigParameter, write_pretty_params
@@ -317,9 +317,12 @@ class DefaultGenome(object):
         for ng in self.nodes.values():
             ng.mutate(config)
 
-        self.radius += gauss(0, 0.5) / 2
-        self.speed += gauss(0, 0.5) / 2
-        self.range += gauss(0, 0.5) / 2
+        self.radius += gauss(0, 0.5) / 10
+        self.speed += gauss(0, 0.5) / 10
+        self.range += gauss(0, 0.5) / 10
+        self.radius = numpy.clip(self.radius, 0.5, 5)
+        self.speed = numpy.clip(self.speed, 0.5, 5)
+        self.range = numpy.clip(self.range, 0.5, 5)
 
     def mutate_add_node(self, config):
         if not self.connections:

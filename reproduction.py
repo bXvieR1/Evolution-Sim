@@ -1,9 +1,12 @@
+import math
 import random
 from itertools import count
 
 from neat.config import ConfigParameter, DefaultClassConfig
 
-MAX_AGE = 5
+MAX_AGE = 20
+
+
 # TODO: Provide some sort of optional cross-species performance criteria, which
 # are then used to control stagnation and possibly the mutation rate
 # configuration. This scheme should be adaptive so that species do not evolve
@@ -42,39 +45,41 @@ class DefaultReproduction(DefaultClassConfig):
 
         return new_genomes
 
-
     def reproduce(self, config, species, pop_size, generation):
         remaining_species = []
         for stag_sid, stag_s, stagnant in self.stagnation.update(species, generation):
             remaining_species.append(stag_s)
 
         new_population = {}
-        #species.species = {}
         for s in remaining_species:
-            old_members = [(i, v) for i, v in s.members.items() if v.fitness == 1]
+
+            old_members = []
+            all_old_members = []
+            for i, v in s.members.items():
+                if v.fitness >= 2:
+                    old_members.append((i, v))
+                elif v.fitness >= 1:
+                    all_old_members.append((i, v))
 
             species.species[s.key] = s
-            for i, m in old_members:
+            for i, m in all_old_members:
                 if generation - m.createdGeneration < MAX_AGE:
                     new_population[i] = m
 
-
             s.members = {}
 
-            # Randomly choose parents and produce the number of offspring allotted to the species.
-            for i in range(len(old_members)):
+            for x in old_members:
+                for y in range(math.floor(x[1].fitness - 1)):
 
-                parent1_id, parent1 = random.choice(old_members)
-                parent2_id, parent2 = random.choice(old_members)
+                    parent1_id, parent1 = x
+                    parent2_id, parent2 = random.choice(old_members)
 
-                # Note that if the parents are not distinct, crossover will produce a
-                # genetically identical clone of the parent (but with a different ID).
-                gid = next(self.genome_indexer)
-                child = config.genome_type(gid)
-                child.configure_crossover(parent1, parent2, generation, config.genome_config)
-                child.mutate(config.genome_config)
-                # TODO: if config.genome_config.feed_forward, no cycles should exist
-                new_population[gid] = child
-                self.ancestors[gid] = (parent1_id, parent2_id)
+                    gid = next(self.genome_indexer)
+                    child = config.genome_type(gid)
+                    child.configure_crossover(parent1, parent2, generation, config.genome_config)
+                    child.mutate(config.genome_config)
+
+                    new_population[gid] = child
+                    self.ancestors[gid] = (parent1_id, parent2_id)
 
         return new_population

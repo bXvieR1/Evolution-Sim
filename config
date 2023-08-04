@@ -1,12 +1,12 @@
 [NEAT]
 fitness_criterion     = max
-fitness_threshold     = 100
-pop_size              = 100
-reset_on_extinction   = False
+fitness_threshold     = 1000
+pop_size              = 200
+reset_on_extinction   = false
 
 [DefaultGenome]
 # node activation options
-activation_default      = tanh
+activation_default      = random
 activation_mutate_rate  = 0.0
 activation_options      = tanh
 
@@ -26,36 +26,36 @@ bias_replace_rate       = 0.1
 
 # genome compatibility options
 compatibility_disjoint_coefficient = 1.0
-compatibility_weight_coefficient   = 0.5
+compatibility_weight_coefficient   = 0.4
 
 # connection add/remove rates
 conn_add_prob           = 0.5
-conn_delete_prob        = 0.5
+conn_delete_prob        = 0.3
 
 # connection enable options
 enabled_default         = True
-enabled_mutate_rate     = 0.01
+enabled_mutate_rate     = 0.02
 
 feed_forward            = True
-initial_connection      = full
+initial_connection      = full_nodirect
 
 # node add/remove rates
-node_add_prob           = 0.2
-node_delete_prob        = 0.2
+node_add_prob           = 0.15
+node_delete_prob        = 0.15
 
 # network parameters
-num_hidden              = 0
+num_hidden              = 1
 num_inputs              = 32
 num_outputs             = 2
 
 # node response options
 response_init_mean      = 1.0
-response_init_stdev     = 0.0
+response_init_stdev     = 0.5
 response_max_value      = 30.0
 response_min_value      = -30.0
-response_mutate_power   = 0.0
-response_mutate_rate    = 0.0
-response_replace_rate   = 0.0
+response_mutate_power   = 0.5
+response_mutate_rate    = 0.3
+response_replace_rate   = 0.1
 
 # connection weight options
 weight_init_mean        = 0.0
