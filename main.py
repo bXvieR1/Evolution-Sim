@@ -6,8 +6,7 @@ import random
 import os
 import neat
 import numpy as np
-from pygame_widgets.slider import Slider
-from pygame_widgets.textbox import TextBox
+import screenRecorder
 
 import genome
 import reproduction
@@ -27,7 +26,9 @@ pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH + DATA_WIDTH, SCREEN_HEIGHT))
 calibri = pygame.font.SysFont('Calibri Bold', 20)
 gen = 0
+frameCounter = 0
 
+recorder = screenRecorder.ScreenRecorder(SCREEN_WIDTH + DATA_WIDTH, SCREEN_HEIGHT, 30)
 
 class Agent():
 
@@ -157,20 +158,22 @@ def run(config_file):
         neat.DefaultStagnation,
         config_file)
     p = neat.Population(config)
-    #p = neat.Checkpointer.restore_checkpoint(os.path.join(local_dir, "neat-checkpoint-1364"))
+    #p = neat.Checkpointer.restore_checkpoint(os.path.join(local_dir, "neat-checkpoint-1647"))
     #p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
     p.add_reporter(neat.Checkpointer(50))
     winner = p.run(eval_genomes)
+    recorder.end_recording()
     print('\nBest genome:\n{!s}'.format(winner))
 
 
-stats = numpy.array([[(float)(1)]*100]*7)
+stats = numpy.array([[(float)(1)]*100]*5)
 def eval_genomes(genomes, config):
 
     global gen
     global stats
+    global frameCounter
 
     gen += 1
     nets = []
@@ -256,16 +259,29 @@ def eval_genomes(genomes, config):
     limit = numpy.max(stats[4]) * 1.1
     graph3 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph3.fill((200, 200, 200))
-    for x in np.arange(2.5, limit, 2.5):
-        y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
-        pygame.draw.line(graph3, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
-        pygame.draw.line(graph3, (0, 0, 0), (0, y), (2, y), 2)
-    for x in np.arange(10, limit, 10):
-        y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
-        number = calibri.render(str(x), False, (0, 0, 0))
-        pygame.draw.line(graph3, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
-        pygame.draw.line(graph3, (0, 0, 0), (0, y), ( 5, y), 3)
-        graph3.blit(number, (6, y - 5))
+    if limit > 20:
+        for x in np.arange(2.5, limit, 2.5):
+            y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
+            pygame.draw.line(graph3, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
+            pygame.draw.line(graph3, (0, 0, 0), (0, y), (2, y), 2)
+        for x in np.arange(10, limit, 10):
+            y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
+            number = calibri.render(str(x), False, (0, 0, 0))
+            pygame.draw.line(graph3, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
+            pygame.draw.line(graph3, (0, 0, 0), (0, y), (5, y), 3)
+            graph3.blit(number, (6, y - 5))
+    else:
+        for x in np.arange(0.5, limit, 0.5):
+            y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
+            pygame.draw.line(graph3, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
+            pygame.draw.line(graph3, (0, 0, 0), (0, y), (2, y), 2)
+        for x in np.arange(2, limit, 2):
+            y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
+            number = calibri.render(str(x), False, (0, 0, 0))
+            pygame.draw.line(graph3, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
+            pygame.draw.line(graph3, (0, 0, 0), (0, y), (5, y), 3)
+            graph3.blit(number, (6, y - 5))
+
     points = \
         np.dstack(
             [np.arange(0, GRAPH_WIDTH, GRAPH_WIDTH / 100) * 1.01, GRAPH_HEIGHT - (stats[4] / limit * GRAPH_HEIGHT)])[0]
@@ -284,6 +300,7 @@ def eval_genomes(genomes, config):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                recorder.end_recording()
                 pygame.quit()
                 quit()
                 break
@@ -370,11 +387,16 @@ def eval_genomes(genomes, config):
         pygame.display.flip()
         pygame.display.update()
 
+        frameCounter += 1
+        if frameCounter > 120:
+            frameCounter = 0
+            recorder.capture_frame(screen)
+
     for x, agent in enumerate(agents):
         if not agent.dead:
             ge[x].fitness = (ge[x].fitness / agent.need)
             if agent.energy / ENERGY > 1:
-                ge[x].fitness *= (agent.energy / ENERGY)
+                ge[x].fitness *= numpy.sqrt(agent.energy / ENERGY)
         else:
             ge[x].fitness -= 2
 
@@ -405,5 +427,5 @@ if __name__ == '__main__':
     # here so that the script will run successfully regardless of the
     # current working directory.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'originalconfig')
+    config_path = os.path.join(local_dir, 'config')
     run(config_path)
