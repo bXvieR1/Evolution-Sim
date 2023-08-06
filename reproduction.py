@@ -66,6 +66,12 @@ class DefaultReproduction(DefaultClassConfig):
                 if generation - m.createdGeneration < MAX_AGE:
                     new_population[i] = m
 
+            if len(new_population)  == 0:
+                members = []
+                for i, v in s.members.items():
+                    members.append((i,v))
+                members.sort(reverse=False, key=lambda x: x[1].fitness)
+                new_population[members[0][0]] = members[0][1]
             s.members = {}
 
             for x in old_members:

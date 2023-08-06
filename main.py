@@ -16,7 +16,7 @@ SCREEN_WIDTH = 1000
 DATA_WIDTH = 400
 SCREEN_HEIGHT = 600
 
-ENERGY = 5000
+ENERGY = 1
 
 RANGE_FACTOR = 100
 SIZE_FACTOR = 5
@@ -25,6 +25,8 @@ SPEED_FACTOR = 2
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH + DATA_WIDTH, SCREEN_HEIGHT))
 calibri = pygame.font.SysFont('Calibri Bold', 20)
+calibri2 = pygame.font.SysFont('Calibri Bold', 50)
+
 gen = 0
 frameCounter = 0
 
@@ -44,7 +46,7 @@ class Agent():
         self.range = genome.range
         self.speed = genome.speed
 
-        self.need = (self.size ** 3 * self.speed ** 2 + self.range) / 2
+        self.need = (self.size ** 2 * self.speed + self.range) / 2
         #self.need = self.size * (1 / self.speed) + 1 / self.range ** 2
 
 
@@ -199,13 +201,14 @@ def eval_genomes(genomes, config):
 
 
 
-    GRAPH_COUNT = 6
-    GRAPH_BORDER = 10
-    GRAPH_OUTLINE = 5
+    GRAPH_COUNT = 7
+    GRAPH_BORDER = 20
+    GRAPH_OUTLINE = 15
     GRAPH_HEIGHT = (SCREEN_HEIGHT) / GRAPH_COUNT - GRAPH_BORDER
     GRAPH_WIDTH = DATA_WIDTH - GRAPH_BORDER * 2
 
     #region graph1
+    text1 = calibri.render("R: Range G: Size B: Speed", False, (255, 255, 255))
     limit = numpy.max(stats[:3]) * 1.1
     graph1 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph1.fill((200, 200, 200))
@@ -237,6 +240,7 @@ def eval_genomes(genomes, config):
     pygame.draw.lines(graph1, (0, 0, 255), False, points, 1)
     # endregion
     #region graph2
+    text2= calibri.render("R: Population", False, (255, 255, 255))
     limit = numpy.max(stats[3]) * 1.1
     graph2 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph2.fill((200, 200, 200))
@@ -257,6 +261,7 @@ def eval_genomes(genomes, config):
     #endregion
     # region graph3
     limit = numpy.max(stats[4]) * 1.1
+    text3 = calibri.render("R: Network Size", False, (255, 255, 255))
     graph3 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT))
     graph3.fill((200, 200, 200))
     if limit > 20:
@@ -288,6 +293,7 @@ def eval_genomes(genomes, config):
     pygame.draw.lines(graph3, (255, 0, 0), False, points, 1)
 
     #endregion
+    text4 = calibri.render("Current Stats: X: Speed Y: Range R: Size", False, (255, 255, 255))
 
     for x in range(50):
         foods.append(Food(random.randint(80, SCREEN_WIDTH - 80), random.randint(80, SCREEN_HEIGHT - 80)))
@@ -325,14 +331,14 @@ def eval_genomes(genomes, config):
             agent.move(output[0] * agent.speed)
             agent.turn(output[1] * agent.speed)
 
-            agent.energy -= agent.size ** 3 * agent.speed ** 2 + agent.range
+            agent.energy -= agent.size ** 2 * agent.speed + agent.range
 
             for food in foods:
                 if np.linalg.norm(food.position - agent.position) < agent.size + 8:
                     foods.remove(food)
                     ge[x].fitness += 1
                     agent.energy += ENERGY
-                    if ge[x].fitness >= agent.need * 4:
+                    if ge[x].fitness >= agent.need * 6:
                         agent.active = False
 
             for subject in agents:
@@ -342,19 +348,22 @@ def eval_genomes(genomes, config):
                         subject.active = False
                         ge[x].fitness += 1
                         agent.energy += (ENERGY + subject.energy) * (subject.size / agent.size)
-                        if ge[x].fitness >= agent.need * 4:
+                        if ge[x].fitness >= agent.need * 6:
                             agent.active = False
 
 
-        pygame.draw.rect(screen, (40, 40, 40), pygame.Rect(0, 0, DATA_WIDTH, SCREEN_HEIGHT))
-        pygame.draw.rect(screen, (20, 20, 20), pygame.Rect(GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_WIDTH + GRAPH_OUTLINE * 2, GRAPH_HEIGHT * 6 + GRAPH_OUTLINE * 10))
+        pygame.draw.rect(screen, (50, 50, 50), pygame.Rect(0, 0, DATA_WIDTH, SCREEN_HEIGHT))
+        #pygame.draw.rect(screen, (20, 20, 20), pygame.Rect(GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_WIDTH + GRAPH_OUTLINE * 2, GRAPH_HEIGHT * 6 + GRAPH_OUTLINE * 10))
+        screen.blit(text1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT - 15))
+        screen.blit(graph1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT))
+        screen.blit(text2, (GRAPH_BORDER, GRAPH_BORDER*2 + GRAPH_HEIGHT*2 - 15))
+        screen.blit(graph2, (GRAPH_BORDER, GRAPH_BORDER*2 + GRAPH_HEIGHT*2))
+        screen.blit(text3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3 - 15))
+        screen.blit(graph3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3))
 
-        screen.blit(graph1, (GRAPH_BORDER, GRAPH_BORDER))
-        screen.blit(graph2, (GRAPH_BORDER, GRAPH_BORDER * 2 + GRAPH_HEIGHT))
-        screen.blit(graph3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT*2))
-        graph4 = pygame.Surface((GRAPH_WIDTH, GRAPH_HEIGHT * 3 + GRAPH_BORDER))
+        HEIGHT = GRAPH_HEIGHT * 3 + GRAPH_BORDER * 2
+        graph4 = pygame.Surface((GRAPH_WIDTH, HEIGHT))
         graph4.fill((200, 200, 200))
-        HEIGHT = GRAPH_HEIGHT * 3 + GRAPH_BORDER
         for i in np.arange(0.25, 5, 0.25):
             y = (5 - i) * HEIGHT/5
             x = i / 5 * GRAPH_WIDTH
@@ -363,7 +372,7 @@ def eval_genomes(genomes, config):
             pygame.draw.line(graph4, (0, 0, 0), (0, y), (2, y), 2)
 
             pygame.draw.line(graph4, (175, 175, 175), (x, 0), (x,HEIGHT), 1)
-            pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT - 2), 2)
+            pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT - 3), 2)
 
         for i in np.arange(1, 5, 1):
             y = (5 - i) * HEIGHT/5
@@ -382,13 +391,18 @@ def eval_genomes(genomes, config):
             pygame.draw.circle(graph4, (subject.range * 51, subject.speed * 51, subject.size*51),(subject.speed / 5 * GRAPH_WIDTH, (1-subject.range/5) * HEIGHT), subject.size*4)
         for agent in agents:
             agent.draw()
-        screen.blit(graph4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 3))
+        screen.blit(graph4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4))
+        screen.blit(text4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4 - 15))
+
+        text5 = calibri2.render("Generation:" + str(gen), False, (255, 255, 255))
+        screen.blit(text5, (GRAPH_BORDER, 20))
+
         clock.tick(100)
         pygame.display.flip()
         pygame.display.update()
 
         frameCounter += 1
-        if frameCounter > 120:
+        if frameCounter > 180:
             frameCounter = 0
             recorder.capture_frame(screen)
 
