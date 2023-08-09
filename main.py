@@ -10,22 +10,27 @@ import screenRecorder
 
 import genome
 import reproduction
-
+FACTOR = 1
 RAY_COUNT = 16
 SCREEN_WIDTH = 1000
 DATA_WIDTH = 400
 SCREEN_HEIGHT = 600
 
-ENERGY = 1
+AREA_WIDTH = 0
+AREA_HEIGHT = 0
 
+
+ENERGY = 1000
 RANGE_FACTOR = 100
-SIZE_FACTOR = 5
+SIZE_FACTOR = 10
 SPEED_FACTOR = 2
+FOOD_SIZE = 8
 
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH + DATA_WIDTH, SCREEN_HEIGHT))
+
 calibri = pygame.font.SysFont('Calibri Bold', 20)
-calibri2 = pygame.font.SysFont('Calibri Bold', 50)
+calibri2 = pygame.font.SysFont('Calibri Bold', 30)
 
 gen = 0
 frameCounter = 0
@@ -46,63 +51,63 @@ class Agent():
         self.range = genome.range
         self.speed = genome.speed
 
-        self.need = (self.size ** 2 * self.speed + self.range) / 2
+        self.need = (self.size ** 3 * self.speed ** 2 + self.range) / 2
         #self.need = self.size * (1 / self.speed) + 1 / self.range ** 2
 
 
     def move(self, input):
         self.position = np.add(self.position, (
             np.sin(self.rotation) * input * SPEED_FACTOR, np.cos(self.rotation) * input * SPEED_FACTOR)).clip((10, 10), (
-            SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10))
+            AREA_WIDTH - 10, AREA_HEIGHT - 10))
 
     def turn(self, input):
         self.rotation += 10 * (input / 180) * SPEED_FACTOR
 
-    def draw(self):
+    def draw(self, area):
         size = SIZE_FACTOR * self.size
-        position = self.position + (DATA_WIDTH, 0)
+        position = self.position
         if self.active:
             if self.energy <= 0:
-                pygame.draw.circle(screen, (80, 80, 80), position, size + 2)
-                pygame.draw.circle(screen, (100, 100, 100), position, size)
+                pygame.draw.circle(area, (80, 80, 80), position, size + 2)
+                pygame.draw.circle(area, (100, 100, 100), position, size)
             else:
 
                 body = numpy.clip((int)(self.speed * 150), 50, 200)
 
-                pygame.draw.circle(screen, (0, 0, 0), position, size + 2)
-                pygame.draw.circle(screen, (body, np.abs(150 - body) * 2, 255 - body), position, size)
+                pygame.draw.circle(area, (0, 0, 0), position, size + 2)
+                pygame.draw.circle(area, (body, np.abs(150 - body) * 2, 255 - body), position, size)
 
                 eye1 = (position[0] + np.sin(self.rotation + 0.6) * size,
                         position[1] + np.cos(self.rotation + 0.6) * size)
                 eye2 = (position[0] + np.sin(self.rotation - 0.6) * size,
                         position[1] + np.cos(self.rotation - 0.6) * size)
 
-                pygame.draw.circle(screen, (10, 10, 10), eye1, size / 2 + 1)
-                pygame.draw.circle(screen, (10, 10, 10), eye2, size / 2 + 1)
+                pygame.draw.circle(area, (10, 10, 10), eye1, size / 2 + 1)
+                pygame.draw.circle(area, (10, 10, 10), eye2, size / 2 + 1)
 
                 if self.range > 1:
                     eyes = numpy.clip(255 - (int)(self.range - 1) * 100, 0, 255)
-                    pygame.draw.circle(screen, (255, eyes, eyes), eye1, size / 2)
-                    pygame.draw.circle(screen, (255, eyes, eyes), eye2, size / 2)
+                    pygame.draw.circle(area, (255, eyes, eyes), eye1, size / 2)
+                    pygame.draw.circle(area, (255, eyes, eyes), eye2, size / 2)
                 else:
                     eyes = numpy.clip(255 - (int)(1 - self.range) * 200, 0, 255)
 
-                    pygame.draw.circle(screen, (eyes, 255, eyes), eye1, size / 2)
-                    pygame.draw.circle(screen, (eyes, 255, eyes), eye2, size / 2)
+                    pygame.draw.circle(area, (eyes, 255, eyes), eye1, size / 2)
+                    pygame.draw.circle(area, (eyes, 255, eyes), eye2, size / 2)
         else:
             if self.dead:
-                pygame.draw.circle(screen, (180, 0, 0), position, size + 2)
-                pygame.draw.circle(screen, (100, 100, 100), position, size)
+                pygame.draw.circle(area, (180, 0, 0), position, size + 2)
+                pygame.draw.circle(area, (100, 100, 100), position, size)
             else:
-                pygame.draw.circle(screen, (0, 180, 0), position, size + 2)
-                pygame.draw.circle(screen, (100, 100, 100), position, size)
+                pygame.draw.circle(area, (0, 180, 0), position, size + 2)
+                pygame.draw.circle(area, (100, 100, 100), position, size)
 
 
-def raycast(foods, agents):
+def raycast(foods, agents, area):
     output = []
     positions = np.vstack(([food.position for food in foods], [agent.position for agent in agents]))
     angles = np.arange(1, RAY_COUNT + 1) - (RAY_COUNT + 1) / 2
-    r = np.concatenate((np.full(len(foods), 5).astype(int), [agent.size for agent in agents]))
+    r = np.concatenate((np.full(len(foods), FOOD_SIZE).astype(int), [agent.size for agent in agents]))
 
     for subject in agents:
         d = np.column_stack(
@@ -132,12 +137,11 @@ def raycast(foods, agents):
             ~t_values[valid_ray_indices[0][valid_t1_indices]])
         foodRay[valid_ray_t1_indices] = valid_ray_t1_values * t_values[
             valid_ray_indices[0][valid_t1_indices]]
-
         for x, (f, a) in enumerate(zip(foodRay, agentRay)):
             if f == 0:
-                pygame.draw.line(screen, (255, 0, 0), subject.position + (DATA_WIDTH, 0), subject.position + d[x] * a + (DATA_WIDTH, 0), 1)
+                pygame.draw.line(area, (255, 0, 0), subject.position, subject.position + d[x] * a, (int)(1 * FACTOR))
             else:
-                pygame.draw.line(screen, (0, 255, 0), subject.position + (DATA_WIDTH, 0), subject.position + d[x] * f + (DATA_WIDTH, 0), 1)
+                pygame.draw.line(area, (0, 255, 0), subject.position, subject.position + d[x] * f, (int)(1 * FACTOR))
 
         output.append(np.concatenate([foodRay, agentRay]))
     return np.vstack(output)
@@ -148,8 +152,8 @@ class Food:
         self.position = np.array([x, y])
         # super(Food, self).__init__()
 
-    def draw(self):
-        pygame.draw.circle(screen, (0, 180, 0), (self.position + (DATA_WIDTH, 0)), 4)
+    def draw(self, area):
+        pygame.draw.circle(area, (0, 180, 0), (self.position), FOOD_SIZE)
 
 
 def run(config_file):
@@ -160,7 +164,7 @@ def run(config_file):
         neat.DefaultStagnation,
         config_file)
     p = neat.Population(config)
-    #p = neat.Checkpointer.restore_checkpoint(os.path.join(local_dir, "neat-checkpoint-1647"))
+    p = neat.Checkpointer.restore_checkpoint(os.path.join(local_dir, "Suc/neat-checkpoint-2028"))
     #p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
@@ -176,6 +180,13 @@ def eval_genomes(genomes, config):
     global gen
     global stats
     global frameCounter
+    global AREA_WIDTH, AREA_HEIGHT, FACTOR
+
+    FACTOR = numpy.minimum((gen/1000)+1, 5)
+    AREA_WIDTH = (int)(SCREEN_WIDTH * FACTOR)
+    AREA_HEIGHT = (int)(SCREEN_HEIGHT * FACTOR)
+    print(FACTOR)
+    area = pygame.Surface((AREA_WIDTH, AREA_HEIGHT))
 
     gen += 1
     nets = []
@@ -189,13 +200,13 @@ def eval_genomes(genomes, config):
         nets.append(net)
         match genome_id % 4:
             case 0:
-                agents.append(Agent(random.randint(0, SCREEN_WIDTH), random.randint(0, 100), genome))
+                agents.append(Agent(random.randint(0, AREA_WIDTH), random.randint(0, 100), genome))
             case 1:
-                agents.append(Agent(random.randint(0, SCREEN_WIDTH), SCREEN_HEIGHT - random.randint(0, 100), genome))
+                agents.append(Agent(random.randint(0, AREA_WIDTH), AREA_HEIGHT - random.randint(0, 100), genome))
             case 2:
-                agents.append(Agent(random.randint(0, 100), random.randint(0, SCREEN_HEIGHT), genome))
+                agents.append(Agent(random.randint(0, 100), random.randint(0, AREA_HEIGHT), genome))
             case 3:
-                agents.append(Agent(SCREEN_WIDTH - random.randint(0, 100), random.randint(0, SCREEN_HEIGHT), genome))
+                agents.append(Agent(AREA_WIDTH - random.randint(0, 100), random.randint(0, AREA_HEIGHT), genome))
 
         ge.append(genome)
 
@@ -249,7 +260,7 @@ def eval_genomes(genomes, config):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         pygame.draw.line(graph2, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
         pygame.draw.line(graph2, (0, 0, 0), (0, y), (2, y), 2)
-    for x in np.arange(50, limit, 50):
+    for x in np.arange(25, limit, 25):
         y = GRAPH_HEIGHT - x / limit * GRAPH_HEIGHT
         number = calibri.render(str(x), False, (0, 0, 0))
         pygame.draw.line(graph2, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
@@ -294,15 +305,58 @@ def eval_genomes(genomes, config):
 
     #endregion
     text4 = calibri.render("Current Stats: X: Speed Y: Range R: Size", False, (255, 255, 255))
+    pygame.draw.rect(screen, (50, 50, 50), pygame.Rect(0, 0, DATA_WIDTH, SCREEN_HEIGHT))
+    screen.blit(text1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT - 15))
+    screen.blit(graph1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT))
+    screen.blit(text2, (GRAPH_BORDER, GRAPH_BORDER * 2 + GRAPH_HEIGHT * 2 - 15))
+    screen.blit(graph2, (GRAPH_BORDER, GRAPH_BORDER * 2 + GRAPH_HEIGHT * 2))
+    screen.blit(text3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3 - 15))
+    screen.blit(graph3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3))
 
+    HEIGHT = GRAPH_HEIGHT * 3 + GRAPH_BORDER * 2
+    graph4 = pygame.Surface((GRAPH_WIDTH, HEIGHT))
+    graph4.fill((200, 200, 200))
+    for i in np.arange(0.25, 5, 0.25):
+        y = (5 - i) * HEIGHT / 5
+        x = i / 5 * GRAPH_WIDTH
+
+        pygame.draw.line(graph4, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
+        pygame.draw.line(graph4, (0, 0, 0), (0, y), (2, y), 2)
+
+        pygame.draw.line(graph4, (175, 175, 175), (x, 0), (x, HEIGHT), 1)
+        pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT - 3), 2)
+
+    for i in np.arange(1, 5, 1):
+        y = (5 - i) * HEIGHT / 5
+        x = i / 5 * GRAPH_WIDTH
+
+        number = calibri.render(str(i), False, (0, 0, 0))
+        pygame.draw.line(graph4, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
+        pygame.draw.line(graph4, (0, 0, 0), (0, y), (5, y), 3)
+        graph4.blit(number, (6, y - 5))
+
+        pygame.draw.line(graph4, (140, 140, 140), (x, HEIGHT), (x, HEIGHT), 1)
+        pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT - 5), 3)
+        graph4.blit(number, (x - 4, HEIGHT - 20))
+    for subject in agents:
+        pygame.draw.circle(graph4, (subject.range * 51, subject.speed * 51, subject.size * 51),
+                           (subject.speed / 5 * GRAPH_WIDTH, (1 - subject.range / 5) * HEIGHT), subject.size * 4)
+    screen.blit(graph4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4))
+    screen.blit(text4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4 - 15))
+
+    text5 = calibri2.render("Generation:" + str(gen), False, (255, 255, 255))
+    text6 = calibri2.render("Size:" + str(1 * FACTOR), False, (255, 255, 255))
+
+    screen.blit(text5, (GRAPH_BORDER, 15))
+    screen.blit(text6, (GRAPH_BORDER, 40))
     for x in range(50):
-        foods.append(Food(random.randint(80, SCREEN_WIDTH - 80), random.randint(80, SCREEN_HEIGHT - 80)))
+        foods.append(Food(random.randint(80, AREA_WIDTH - 80), random.randint(80, AREA_HEIGHT - 80)))
 
     clock = pygame.time.Clock()
 
     running = True
     while running and len(foods) > 5:
-        screen.fill((20, 20, 20))
+        area.fill((20, 20, 20))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -312,7 +366,7 @@ def eval_genomes(genomes, config):
                 break
 
         for food in foods:
-            food.draw()
+            food.draw(area)
 
         alive = [agent for agent in agents if agent.active]
         moving = [agent for agent in alive if agent.energy > 0]
@@ -321,7 +375,7 @@ def eval_genomes(genomes, config):
             running = False
             break
 
-        ray = raycast(foods, alive)
+        ray = raycast(foods, alive, area)
 
         for x, agent in enumerate(alive):
             if agent.energy <= 0:
@@ -334,7 +388,7 @@ def eval_genomes(genomes, config):
             agent.energy -= agent.size ** 2 * agent.speed + agent.range
 
             for food in foods:
-                if np.linalg.norm(food.position - agent.position) < agent.size + 8:
+                if np.linalg.norm(food.position - agent.position) < agent.size * SIZE_FACTOR + FOOD_SIZE:
                     foods.remove(food)
                     ge[x].fitness += 1
                     agent.energy += ENERGY
@@ -351,58 +405,18 @@ def eval_genomes(genomes, config):
                         if ge[x].fitness >= agent.need * 6:
                             agent.active = False
 
-
-        pygame.draw.rect(screen, (50, 50, 50), pygame.Rect(0, 0, DATA_WIDTH, SCREEN_HEIGHT))
-        #pygame.draw.rect(screen, (20, 20, 20), pygame.Rect(GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_BORDER - GRAPH_OUTLINE, GRAPH_WIDTH + GRAPH_OUTLINE * 2, GRAPH_HEIGHT * 6 + GRAPH_OUTLINE * 10))
-        screen.blit(text1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT - 15))
-        screen.blit(graph1, (GRAPH_BORDER, GRAPH_BORDER + GRAPH_HEIGHT))
-        screen.blit(text2, (GRAPH_BORDER, GRAPH_BORDER*2 + GRAPH_HEIGHT*2 - 15))
-        screen.blit(graph2, (GRAPH_BORDER, GRAPH_BORDER*2 + GRAPH_HEIGHT*2))
-        screen.blit(text3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3 - 15))
-        screen.blit(graph3, (GRAPH_BORDER, GRAPH_BORDER * 3 + GRAPH_HEIGHT * 3))
-
-        HEIGHT = GRAPH_HEIGHT * 3 + GRAPH_BORDER * 2
-        graph4 = pygame.Surface((GRAPH_WIDTH, HEIGHT))
-        graph4.fill((200, 200, 200))
-        for i in np.arange(0.25, 5, 0.25):
-            y = (5 - i) * HEIGHT/5
-            x = i / 5 * GRAPH_WIDTH
-
-            pygame.draw.line(graph4, (175, 175, 175), (0, y), (GRAPH_WIDTH, y), 1)
-            pygame.draw.line(graph4, (0, 0, 0), (0, y), (2, y), 2)
-
-            pygame.draw.line(graph4, (175, 175, 175), (x, 0), (x,HEIGHT), 1)
-            pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT - 3), 2)
-
-        for i in np.arange(1, 5, 1):
-            y = (5 - i) * HEIGHT/5
-            x = i / 5 * GRAPH_WIDTH
-
-            number = calibri.render(str(i), False, (0, 0, 0))
-            pygame.draw.line(graph4, (140, 140, 140), (0, y), (GRAPH_WIDTH, y), 1)
-            pygame.draw.line(graph4, (0, 0, 0), (0, y), (5, y), 3)
-            graph4.blit(number, (6, y - 5))
-            
-            pygame.draw.line(graph4, (140, 140, 140), (x, HEIGHT), (x, HEIGHT), 1)
-            pygame.draw.line(graph4, (0, 0, 0), (x, HEIGHT), (x, HEIGHT-5), 3)
-            graph4.blit(number, (x - 4, HEIGHT - 20))
-
-        for subject in agents:
-            pygame.draw.circle(graph4, (subject.range * 51, subject.speed * 51, subject.size*51),(subject.speed / 5 * GRAPH_WIDTH, (1-subject.range/5) * HEIGHT), subject.size*4)
         for agent in agents:
-            agent.draw()
-        screen.blit(graph4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4))
-        screen.blit(text4, (GRAPH_BORDER, GRAPH_BORDER * 4 + GRAPH_HEIGHT * 4 - 15))
+            agent.draw(area)
 
-        text5 = calibri2.render("Generation:" + str(gen), False, (255, 255, 255))
-        screen.blit(text5, (GRAPH_BORDER, 20))
+        resized_screen = pygame.transform.scale(area, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        screen.blit(resized_screen, (DATA_WIDTH,0))
 
         clock.tick(100)
         pygame.display.flip()
         pygame.display.update()
 
         frameCounter += 1
-        if frameCounter > 180:
+        if frameCounter > 2:
             frameCounter = 0
             recorder.capture_frame(screen)
 
